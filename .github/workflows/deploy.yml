@@ -1,0 +1,47 @@
+name: Deploy Khetmitra to AWS Lambda
+
+on:
+  push:
+    branches:
+      - main        # auto-deploys every time you push to main branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Pull your code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: Create config.py from GitHub Secrets (replaces your local config.py)
+      - name: Create config.py from secrets
+        run: |
+          echo "BOT_TOKEN = '${{ secrets.BOT_TOKEN }}'" > config.py
+          echo "KNOWLEDGE_BASE_ID = '${{ secrets.KNOWLEDGE_BASE_ID }}'" >> config.py
+
+      # Step 3: Zip the Lambda code
+      - name: Zip Lambda package
+        run: zip deployment.zip lambda_function.py config.py
+
+      # Step 4: Configure AWS credentials (stored as GitHub Secrets)
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      # Step 5: Push zip directly to Lambda
+      - name: Deploy to Lambda
+        run: |
+          aws lambda update-function-code \
+            --function-name khetmitra-bot \
+            --zip-file fileb://deployment.zip
+
+      # Step 6: Confirm deployment
+      - name: Verify deployment
+        run: |
+          aws lambda get-function \
+            --function-name khetmitra-bot \
+            --query 'Configuration.[FunctionName,LastModified,State]'
